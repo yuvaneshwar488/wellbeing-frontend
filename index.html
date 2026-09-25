@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wellbeing Companion</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes pulse-circle {
+      0%, 100% { transform: scale(1); opacity: 0.6; }
+      50% { transform: scale(1.35); opacity: 1; }
+    }
+    .breathing-active {
+      animation: pulse-circle 19s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans p-4 md:p-8">
+  <div class="max-w-4xl mx-auto space-y-8">
+    <header class="text-center space-y-2">
+      <h1 class="text-3xl md:text-4xl font-bold bg-gradient-to-r from-teal-400 to-indigo-400 bg-clip-text text-transparent">
+        Wellbeing Companion
+      </h1>
+      <p class="text-slate-400 text-sm">Track your daily state and ground your mind</p>
+    </header>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- Check-In Card -->
+      <section class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+        <h2 class="text-xl font-semibold text-teal-300">Daily Check-In</h2>
+        <form id="checkinForm" class="space-y-4">
+          <div>
+            <label class="text-xs uppercase tracking-wider text-slate-400 flex justify-between">
+              <span>Mood (1-5)</span>
+              <span id="moodVal" class="text-teal-400 font-bold">3</span>
+            </label>
+            <input type="range" id="mood" min="1" max="5" value="3" class="w-full accent-teal-400 cursor-pointer">
+          </div>
+
+          <div>
+            <label class="text-xs uppercase tracking-wider text-slate-400 flex justify-between">
+              <span>Energy Level (1-5)</span>
+              <span id="energyVal" class="text-teal-400 font-bold">3</span>
+            </label>
+            <input type="range" id="energy" min="1" max="5" value="3" class="w-full accent-teal-400 cursor-pointer">
+          </div>
+
+          <div>
+            <label class="text-xs uppercase tracking-wider text-slate-400 flex justify-between">
+              <span>Stress Level (1-5)</span>
+              <span id="stressVal" class="text-teal-400 font-bold">3</span>
+            </label>
+            <input type="range" id="stress" min="1" max="5" value="3" class="w-full accent-teal-400 cursor-pointer">
+          </div>
+
+          <div>
+            <label class="text-xs uppercase tracking-wider text-slate-400">Primary Emotion</label>
+            <input type="text" id="emotion" placeholder="e.g. Calm, Tired, Motivated" required class="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-teal-400">
+          </div>
+
+          <div>
+            <label class="text-xs uppercase tracking-wider text-slate-400">Reflection Note</label>
+            <textarea id="note" rows="2" placeholder="What is on your mind?" class="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-teal-400"></textarea>
+          </div>
+
+          <button type="submit" id="submitBtn" class="w-full bg-teal-500 hover:bg-teal-600 text-slate-950 font-semibold py-2.5 rounded-lg transition duration-150">
+            Log Check-In
+          </button>
+          <p id="statusMsg" class="text-xs text-center hidden"></p>
+        </form>
+      </section>
+
+      <!-- Breathing Guide Card -->
+      <section class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col items-center justify-between space-y-6">
+        <h2 class="text-xl font-semibold text-indigo-300">4-7-8 Breathing Guide</h2>
+        <div class="relative flex items-center justify-center h-48 w-48">
+          <div id="breathCircle" class="absolute w-36 h-36 rounded-full bg-indigo-500/20 border border-indigo-400/40"></div>
+          <span id="breathText" class="relative text-sm font-medium text-indigo-200">Tap Start</span>
+        </div>
+        <button id="breathBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-lg transition duration-150">
+          Start Session
+        </button>
+      </section>
+    </div>
+
+    <!-- Recent Logs Card -->
+    <section class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl font-semibold text-slate-200">Recent Reflections</h2>
+        <button id="refreshBtn" class="text-xs text-teal-400 hover:underline">Refresh</button>
+      </div>
+      <div id="logsContainer" class="space-y-3">
+        <p class="text-xs text-slate-500">Loading history...</p>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const API_URL = "https://wellbeing-backend-production-0aca.up.railway.app";
+
+    ['mood', 'energy', 'stress'].forEach(id => {
+      document.getElementById(id).addEventListener('input', e => {
+        document.getElementById(id + 'Val').textContent = e.target.value;
+      });
+    });
+
+    async function loadLogs() {
+      const container = document.getElementById('logsContainer');
+      try {
+        const res = await fetch(`${API_URL}/api/v1/analytics/trends`);
+        const data = await res.json();
+        if (!data.logs || data.logs.length === 0) {
+          container.innerHTML = '<p class="text-xs text-slate-500">No reflections logged yet. Submit one above!</p>';
+          return;
+        }
+        container.innerHTML = data.logs.map(log => `
+          <div class="p-3 bg-slate-800/60 border border-slate-800 rounded-xl flex items-center justify-between text-sm">
+            <div>
+              <span class="font-medium text-teal-300">${log.primary_emotion || 'Logged'}</span>
+              <p class="text-xs text-slate-400">${log.note || 'No notes added'}</p>
+            </div>
+            <div class="text-right text-xs text-slate-400">
+              <span class="text-teal-400 font-semibold">Mood: ${log.mood_score}/5</span>
+              <p>${new Date(log.logged_at).toLocaleDateString()}</p>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        container.innerHTML = '<p class="text-xs text-rose-400">Could not fetch logs from backend.</p>';
+      }
+    }
+
+    document.getElementById('checkinForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const statusMsg = document.getElementById('statusMsg');
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = true;
+
+      const payload = {
+        mood_score: parseInt(document.getElementById('mood').value),
+        energy_level: parseInt(document.getElementById('energy').value),
+        stress_level: parseInt(document.getElementById('stress').value),
+        primary_emotion: document.getElementById('emotion').value,
+        note: document.getElementById('note').value,
+        tags: []
+      };
+
+      try {
+        const res = await fetch(`${API_URL}/api/v1/checkin`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          statusMsg.textContent = 'Check-in saved successfully!';
+          statusMsg.className = 'text-xs text-center text-teal-400';
+          document.getElementById('note').value = '';
+          document.getElementById('emotion').value = '';
+          loadLogs();
+        } else {
+          throw new Error();
+        }
+      } catch {
+        statusMsg.textContent = 'Failed to submit check-in.';
+        statusMsg.className = 'text-xs text-center text-rose-400';
+      } finally {
+        statusMsg.classList.remove('hidden');
+        submitBtn.disabled = false;
+      }
+    });
+
+    let breathing = false;
+    let timerId = null;
+    const circle = document.getElementById('breathCircle');
+    const breathText = document.getElementById('breathText');
+    const breathBtn = document.getElementById('breathBtn');
+
+    breathBtn.addEventListener('click', () => {
+      breathing = !breathing;
+      if (breathing) {
+        breathBtn.textContent = 'Stop Session';
+        circle.classList.add('breathing-active');
+        runBreathingCycle();
+      } else {
+        breathBtn.textContent = 'Start Session';
+        circle.classList.remove('breathing-active');
+        clearTimeout(timerId);
+        breathText.textContent = 'Tap Start';
+      }
+    });
+
+    function runBreathingCycle() {
+      if (!breathing) return;
+      breathText.textContent = 'Inhale (4s)';
+      timerId = setTimeout(() => {
+        if (!breathing) return;
+        breathText.textContent = 'Hold (7s)';
+        timerId = setTimeout(() => {
+          if (!breathing) return;
+          breathText.textContent = 'Exhale (8s)';
+          timerId = setTimeout(runBreathingCycle, 8000);
+        }, 7000);
+      }, 4000);
+    }
+
+    document.getElementById('refreshBtn').addEventListener('click', loadLogs);
+    loadLogs();
+  </script>
+</body>
+</html>
